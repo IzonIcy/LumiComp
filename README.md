@@ -1,6 +1,6 @@
 # Lumi-Compiler
 
-[![CI](https://github.com/IzonIcy/LumiCompiler/actions/workflows/ci.yml/badge.svg)](https://github.com/IzonIcy/LumiCompiler/actions/workflows/ci.yml)
+[![CI](https://github.com/IzonIcy/LumiComp/actions/workflows/ci.yml/badge.svg)](https://github.com/IzonIcy/LumiComp/actions/workflows/ci.yml)
 
 Lumi Compiler is a hand-built C compiler project in C with a real multi-stage
 pipeline:
@@ -157,8 +157,8 @@ end function
 ### Build
 
 ```bash
-git clone <https://github.com/IzonIcy/C-Compiler>
-cd C-Compiler
+git clone https://github.com/IzonIcy/LumiComp.git
+cd LumiComp
 make
 ```
 
