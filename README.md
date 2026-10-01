@@ -140,10 +140,10 @@ Code generation:
 ```text
 func main(void) -> int
 entry:
-  t0 = call mix(7, 0.25)
-  t1 = cast int, t0
-  ret t1
-end function
+  t15 = call mix(7, 0.25)
+  t16 = cast int, t15
+  ret t16
+endfunc
 ```
 
 ## Installation
