@@ -33,7 +33,7 @@ static bool cc_parse_integer_literal(const char *text, long long *value) {
     copy[length] = '\0';
 
     if (length > 2 && copy[0] == '0' && (copy[1] == 'b' || copy[1] == 'B')) {
-        long long parsed;
+        unsigned long long parsed;
 
         parsed = 0;
         for (index = 2; index < length; index++) {
@@ -41,9 +41,11 @@ static bool cc_parse_integer_literal(const char *text, long long *value) {
                 free(copy);
                 return false;
             }
-            parsed = (parsed << 1) | (copy[index] - '0');
+            /* Accumulate unsigned: shifting a signed value up into the sign bit
+             * is undefined, and a 64-bit literal does exactly that. */
+            parsed = (parsed << 1) | (unsigned long long)(copy[index] - '0');
         }
-        *value = parsed;
+        *value = (long long)parsed;
         free(copy);
         return true;
     }

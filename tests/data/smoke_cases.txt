@@ -19,3 +19,5 @@ preprocess|tests/include_cycle_a.c|1|include nesting too deep
 # Regression: const folding must reject UB shifts/overflow instead of tripping UBSan
 check|tests/shift_too_large.c|1|case label must be an integer constant expression
 check|tests/const_overflow.c|1|case label must be an integer constant expression
+# Regression: a 0b literal wide enough to reach the sign bit must fold without UB
+check|tests/binary_literal_overflow.c|0|semantic analysis succeeded
