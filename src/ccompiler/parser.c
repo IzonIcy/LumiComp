@@ -31,6 +31,7 @@ typedef struct {
     size_t typedef_scope_count;
     size_t typedef_scope_capacity;
     size_t expression_depth;
+    size_t statement_depth;
 } CCParser;
 
 static const char *const cc_ast_kind_names[] = {
@@ -269,6 +270,25 @@ static bool cc_enter_expression_nesting(CCParser *parser) {
 
 static void cc_leave_expression_nesting(CCParser *parser) {
     parser->expression_depth--;
+}
+
+/* Statement parsing recurses per nesting level too, through compound blocks
+ * and the bodies of if/while/for/do/switch. Nested braces alone are enough to
+ * exhaust the stack, so the same cap applies one level up. */
+#define CC_MAX_STATEMENT_NESTING 200
+
+static bool cc_enter_statement_nesting(CCParser *parser) {
+    if (parser->statement_depth >= CC_MAX_STATEMENT_NESTING) {
+        cc_expected(parser, "statement nesting too deep");
+        return false;
+    }
+
+    parser->statement_depth++;
+    return true;
+}
+
+static void cc_leave_statement_nesting(CCParser *parser) {
+    parser->statement_depth--;
 }
 
 static CCAstNode *cc_new_ast_node(CCAstKind kind, CCSpan span, const char *text) {
@@ -579,6 +599,7 @@ static void cc_synchronize_to_semicolon_or_brace(CCParser *parser) {
 static CCAstNode *cc_parse_expression(CCParser *parser);
 static CCAstNode *cc_parse_assignment_expression(CCParser *parser);
 static CCAstNode *cc_parse_statement(CCParser *parser);
+static CCAstNode *cc_parse_statement_body(CCParser *parser);
 static CCAstNode *cc_parse_declaration(CCParser *parser);
 static CCParsedDeclarator cc_parse_declarator(CCParser *parser, bool allow_abstract);
 
@@ -1809,6 +1830,18 @@ static CCAstNode *cc_parse_expression_statement(CCParser *parser) {
 }
 
 static CCAstNode *cc_parse_statement(CCParser *parser) {
+    CCAstNode *statement;
+
+    if (!cc_enter_statement_nesting(parser)) {
+        return NULL;
+    }
+
+    statement = cc_parse_statement_body(parser);
+    cc_leave_statement_nesting(parser);
+    return statement;
+}
+
+static CCAstNode *cc_parse_statement_body(CCParser *parser) {
     if (cc_current_token(parser)->kind == CC_TOKEN_IDENTIFIER && cc_peek_token(parser, 1)->kind == CC_TOKEN_COLON) {
         return cc_parse_labeled_statement(parser);
     }
