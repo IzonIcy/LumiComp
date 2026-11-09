@@ -5,12 +5,11 @@ build/
 # OpenCode config
 opencode.json
 
-# Agent configs (AGENTS.md is the committed source of truth)
+# Agent configs (CLAUDE.md is local-only; AGENTS.md is tracked)
 CLAUDE.md
 .github/copilot-instructions.md
 
 # Agent instruction files
-AGENTS.md
 
 # stray tool caches
 .ruff_cache/
