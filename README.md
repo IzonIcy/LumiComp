@@ -2,131 +2,108 @@
 
 [![CI](https://github.com/IzonIcy/LumiComp/actions/workflows/ci.yml/badge.svg)](https://github.com/IzonIcy/LumiComp/actions/workflows/ci.yml)
 
-Lumi Compiler is a hand-built C compiler project in C with a real multi-stage
-pipeline:
+Lumi-Compiler is a C compiler written in C that carries a subset of the language from source to readable textual IR, built for people who want to read a complete compiler front end and watch each stage run on a file they can edit.
 
-- lexical analysis
-- preprocessing
-- recursive-descent parsing
-- semantic analysis
-- lowered IR-style code generation
+Build it and push one file through the pipeline:
 
-It is still a subset compiler, not a full production C implementation, but it
-now handles enough of the language to lex, preprocess, parse, validate, and
-lower non-trivial C programs with useful diagnostics.
+```sh
+make && ./build/bin/C-Compiler check examples/feature_showcase.c
+```
 
-## Current Pipeline
+![Ghostty terminal running Lumi-Compiler: diagnostics for examples/lexer_errors.c alongside the lowered IR for examples/feature_showcase.c](docs/images/demo.png)
+
+## How it compares
+
+chibicc is the other small C compiler people read to learn how one works, and it goes further than this repo: it emits x86-64 assembly and can compile real programs. LumiComp stops one stage earlier, at textual IR, which keeps the backend short enough to read but leaves you with no object file. clang is the compiler to reach for when you want to build and run C. Nothing here replaces it.
+
+## The pipeline
+
+10,469 lines across `src/` and `include/`, one concern per file. Each stage has its own subcommand, so you can stop and read the output anywhere.
 
 ### Lexer
 
-The lexer recognizes:
-
 - identifiers and C keywords
-- integer literals, including decimal, octal, hexadecimal, and 0b-style
-  extensions
-- floating literals, including hexadecimal floats like 0x1.fp3
-- string and character literals with prefixes like u8, u, U, and L
+- integer literals in decimal, octal, and hexadecimal, plus a 0b-style binary extension
+- floating literals, including hexadecimal floats such as `0x1.fp3`
+- string and character literals with `u8`, `u`, `U`, and `L` prefixes
 - comments, digraphs, and multi-character punctuators
 
 ### Preprocessor
 
-The preprocessor currently supports:
-
-- quoted includes like #include "file.h"
-- local angle-bracket includes like #include <file.h>
-- object-like and function-like #define
-- #undef
-- #if, #ifdef, #ifndef, #elif, #else, and #endif
-- defined(NAME) and defined NAME expressions in #if and #elif
-- macro expansion and token pasting with ##
+- quoted includes, `#include "file.h"`
+- local angle-bracket includes, `#include <file.h>`
+- object-like and function-like `#define`, plus `#undef`
+- `#if`, `#ifdef`, `#ifndef`, `#elif`, `#else`, and `#endif`
+- `defined(NAME)` and `defined NAME` expressions in `#if` and `#elif`
+- macro expansion and token pasting with `##`
 
 ### Parser
 
-The parser handles a meaningful C subset, including:
+A recursive-descent parser over a working C subset:
 
 - typedefs, declarations, and function definitions
-- pointer and array declarators
-- parameter lists
-- compound statements
-- labels and goto
+- pointer and array declarators, and parameter lists
+- compound statements, labels, and goto
 - if, for, while, do ... while, and switch
 - case, default, return, break, and continue
 - unary, binary, conditional, cast, call, member, and subscript expressions
 - struct and union definitions with field declarations
 
-### Semantic Analysis
-
-The semantic pass performs:
+### Semantic analysis
 
 - scope and symbol-table tracking
 - typedef resolution
-- duplicate declaration checks
-- undeclared identifier checks
+- duplicate declaration checks and undeclared identifier checks
 - function-call arity checks
 - assignment and return-type validation
-- struct/union tag resolution, field layout/alignment, and member-access validation for . and ->
+- struct and union tag resolution, field layout and alignment, and member access validation for `.` and `->`
 - break, continue, case, and default validation
-- label resolution for goto
-- duplicate label, case, and default detection
+- label resolution for goto, with duplicate label, case, and default detection
 - simple non-void return-path checks
 
-### Code Generation
+### Code generation
 
-The backend lowers parsed C code into a readable intermediate representation (IR) for a supported subset of the language. It handles control flow constructs including loops, conditionals, switch statements, labels, and goto. Basic constant folding is applied to integer expressions during lowering. While the compiler does not yet emit native assembly, this stage establishes a functional code generation pipeline and provides a solid foundation for a future machine-level backend.
+The backend lowers the checked program to readable textual IR. It covers loops, conditionals, switch statements, labels, and goto, and it folds constant integer expressions during lowering. It does not emit assembly or machine code.
 
-## Commands
+## Build and run
 
-Build the compiler:
+Requirements: a C11 compiler such as clang or gcc, make, and clang if you want `make analyze`.
 
-```bash
+```sh
+git clone https://github.com/IzonIcy/LumiComp.git
+cd LumiComp
 make
 ```
 
-The binary is written to:
+The binary lands at `build/bin/C-Compiler`. To put it on your PATH:
 
-```text
-build/bin/C-Compiler
+```sh
+install -m 755 build/bin/C-Compiler /usr/local/bin/C-Compiler
 ```
 
-Run the raw lexer:
+That directory may need sudo.
 
-```bash
+Each stage is a subcommand:
+
+```sh
 ./build/bin/C-Compiler lex examples/feature_showcase.c
-```
-
-You can also omit lex:
-
-```bash
-./build/bin/C-Compiler examples/feature_showcase.c
-```
-
-Run preprocessing:
-
-```bash
 ./build/bin/C-Compiler preprocess examples/feature_showcase.c
-```
-
-Print the raw AST:
-
-```bash
 ./build/bin/C-Compiler parse examples/feature_showcase.c
-```
-
-Run semantic analysis on the preprocessed translation unit:
-
-```bash
 ./build/bin/C-Compiler check examples/feature_showcase.c
-```
-
-Emit lowered IR:
-
-```bash
 ./build/bin/C-Compiler codegen examples/feature_showcase.c
 ```
 
-## Example Output
+A bare path with no subcommand runs the lexer:
 
-Semantic analysis:
+```sh
+./build/bin/C-Compiler examples/feature_showcase.c
+```
+
+Add `--dump-tokens` for the token stream and `--dump-ast-json` for the AST as JSON.
+
+## Example output
+
+`check` on `examples/feature_showcase.c`:
 
 ```text
 semantic analysis succeeded
@@ -135,7 +112,7 @@ globals: 0
 typedefs: 1
 ```
 
-Code generation:
+`codegen` on the same file ends with:
 
 ```text
 func main(void) -> int
@@ -146,84 +123,44 @@ entry:
 endfunc
 ```
 
-## Installation
-
-### Requirements
-
-- a C11-compatible compiler such as clang or gcc
-- make
-- clang if you want to run make analyze
-
-### Build
-
-```bash
-git clone https://github.com/IzonIcy/LumiComp.git
-cd LumiComp
-make
-```
-
-### Optional PATH Install
-
-```bash
-install -m 755 build/bin/C-Compiler /usr/local/bin/C-Compiler
-```
-
-If your system requires elevated permissions for /usr/local/bin, use sudo.
-
 ## Verification
 
-Run the smoke-test suite, including golden-file IR regression tests:
-
-```bash
-make test
+```sh
+make test       # smoke suites plus golden IR regression
+make analyze    # clang static analyzer
+make verify     # both
 ```
 
-Regenerate golden files after an intentional codegen change:
+The golden suite diffs the IR emitted for each case against the committed files in `tests/golden/`. A differential check also confirms that LumiComp and `clang -fsyntax-only` accept and reject the same test programs. Regenerate the goldens only after an intentional codegen change:
 
-```bash
+```sh
 UPDATE_GOLDEN=1 sh tests/golden_smoke.sh
 ```
 
-Run static analysis:
+Run the suites under ASan and UBSan with `make sanitizers`.
 
-```bash
-make analyze
-```
+Fuzz with the portable harness:
 
-Run both:
-
-```bash
-make verify
-```
-
-Fuzz the compiler with sanitizers (works with any compiler):
-
-```bash
+```sh
 make fuzz
 ./build/bin/fuzz-standalone examples/*.c
 ```
 
-On systems with the libFuzzer runtime (e.g. Linux with clang), build the
-coverage-guided harness instead:
+On systems with the libFuzzer runtime, such as Linux with clang, build the coverage-guided harness instead:
 
-```bash
+```sh
 make fuzz-libfuzzer
 mkdir -p build/fuzz-corpus
 cp examples/*.c tests/*.c build/fuzz-corpus/
 ./build/bin/fuzz-pipeline -max_total_time=60 build/fuzz-corpus
 ```
 
-The repository also includes a GitHub Actions workflow at
-.github/workflows/ci.yml that runs compiler-matrix tests (clang and gcc),
-static analysis, sanitizer-backed test runs, a warnings-as-errors build, and
-a short fuzzing smoke run on pushes and pull requests.
+`.github/workflows/ci.yml` runs a clang and gcc matrix, static analysis, sanitizer-backed tests, a warnings-as-errors build, and a short fuzzing smoke run on pushes and pull requests.
 
-## Limits
+## What it does not do yet
 
-This project still intentionally stops short of being a full ISO C compiler.
-Some notable limits:
-
-- the preprocessor still focuses on local include resolution and common macro flows
-- semantic typing is intentionally lightweight
-- the backend emits textual IR, not object code or machine assembly
-- advanced C constructs like bit-fields, flexible array members, and full function-pointer coverage are not complete yet
+- No assembly, object files, or executables. The backend ends at textual IR.
+- No include search path. `#include` resolves next to the including file or from an absolute path, so `#include <stdio.h>` fails to open.
+- Preprocessor coverage stays on local includes and common macro flows.
+- Bit-fields, flexible array members, and full function-pointer coverage are incomplete.
+- No optimization passes. Folding constant integer expressions during lowering is all the backend does.
