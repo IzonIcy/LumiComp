@@ -1327,8 +1327,11 @@ static CCAsmType cc_asm_operand_type(CCAsmContext *context, CCAsmSlice operand) 
         return cc_asm_type_make(CC_ASM_SCALAR_F64, 0);
     }
     if (literal.kind == CC_ASM_LITERAL_INTEGER) {
+        CCAsmType literal_type;
+
+        literal_type = cc_asm_type_make(literal.integer_unsigned ? CC_ASM_SCALAR_U64 : CC_ASM_SCALAR_I64, 0);
         cc_asm_literal_free(&literal);
-        return cc_asm_type_make(literal.integer_unsigned ? CC_ASM_SCALAR_U64 : CC_ASM_SCALAR_I64, 0);
+        return literal_type;
     }
     cc_asm_literal_free(&literal);
 
@@ -2299,21 +2302,21 @@ static void cc_asm_emit_assignment(CCAsmContext *context, CCAsmSlice lhs, CCAsmS
             const char *label;
 
             label = cc_asm_string_label(context, literal.bytes, literal.length);
-            destination->type = cc_asm_type_make(CC_ASM_SCALAR_I8, 1);
+            cc_asm_set_destination_type(destination, cc_asm_type_make(CC_ASM_SCALAR_I8, 1));
             cc_asm_emit_line(&context->output, "  leaq %s(%%rip), %%rax", label);
             cc_asm_store_integer(context, destination);
             cc_asm_literal_free(&literal);
             return;
         }
         if (literal.kind == CC_ASM_LITERAL_FLOAT) {
-            destination->type = cc_asm_type_make(CC_ASM_SCALAR_F64, 0);
+            cc_asm_set_destination_type(destination, cc_asm_type_make(CC_ASM_SCALAR_F64, 0));
             cc_asm_load_float_into(context, whole, 0);
             cc_asm_store_float(context, destination);
             cc_asm_literal_free(&literal);
             return;
         }
         if (literal.kind == CC_ASM_LITERAL_INTEGER) {
-            destination->type = cc_asm_type_make(CC_ASM_SCALAR_I64, 0);
+            cc_asm_set_destination_type(destination, cc_asm_type_make(CC_ASM_SCALAR_I64, 0));
             cc_asm_load_integer_into(context, whole, 0);
             cc_asm_store_integer(context, destination);
             cc_asm_literal_free(&literal);
@@ -2789,6 +2792,10 @@ static void cc_asm_emit_function(CCAsmContext *context, CCAsmSlice signature, ch
         free(name);
         return;
     }
+
+    /* Calls appear in other functions, so a definition has to publish its
+     * own signature the same way a declaration does. */
+    cc_asm_register_function(context, name, return_type, false);
 
     cc_asm_emit_line(&context->output, "");
     cc_asm_emit_line(&context->output, ".p2align 4");
