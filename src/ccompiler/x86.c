@@ -780,6 +780,19 @@ static CCAsmSymbol *cc_asm_add_local(CCAsmContext *context, const char *name, CC
     return symbol;
 }
 
+/* The local table is reused across functions, so the names it owns have to be
+   released when the table is rewound rather than only when the context dies. */
+static void cc_asm_reset_locals(CCAsmContext *context) {
+    size_t index;
+
+    for (index = 0; index < context->local_count; index++) {
+        free(context->locals[index].name);
+        free(context->locals[index].global_label);
+        memset(&context->locals[index], 0, sizeof(context->locals[index]));
+    }
+    context->local_count = 0;
+}
+
 static const CCAsmFunction *cc_asm_lookup_function(const CCAsmContext *context, const char *name) {
     size_t index;
 
@@ -2713,7 +2726,7 @@ static void cc_asm_emit_function(CCAsmContext *context, CCAsmSlice signature, ch
     context->function_name = name;
     context->function_node = cc_asm_find_function_node(context->parse_result, name);
     context->function_return_type = return_type;
-    context->local_count = 0;
+    cc_asm_reset_locals(context);
     context->slot_count = 0;
     context->failed = false;
 
