@@ -24,7 +24,7 @@ chibicc is the other small C compiler people read to learn how one works, and it
 
 ## The pipeline
 
-10,469 lines across `src/` and `include/`, one concern per file. Each stage has its own subcommand, so you can stop and read the output anywhere.
+13,997 lines across `src/` and `include/`, one concern per file. The front end is 10,598 of them; the x86-64 backend is the rest. Each stage has its own subcommand, so you can stop and read the output anywhere.
 
 ### Lexer
 
