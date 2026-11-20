@@ -113,6 +113,7 @@ run_diagnostic_case() {
 run_assembly_case asm_hello examples/asm_hello.c 0
 run_assembly_case asm_loops examples/asm_loops.c 0
 run_assembly_case asm_fib examples/asm_fib.c 0
+run_assembly_case asm_wide examples/asm_wide.c 0
 # feature_showcase prints nothing, so its exit status is the whole result.
 run_assembly_case feature_showcase examples/feature_showcase.c 118
 
