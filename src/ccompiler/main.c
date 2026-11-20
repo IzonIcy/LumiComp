@@ -1,8 +1,10 @@
+#include "ccompiler/build.h"
 #include "ccompiler/codegen.h"
 #include "ccompiler/lexer.h"
 #include "ccompiler/parser.h"
 #include "ccompiler/preprocessor.h"
 #include "ccompiler/sema.h"
+#include "ccompiler/x86.h"
 
 #include <errno.h>
 #include <stdbool.h>
@@ -16,6 +18,7 @@ typedef struct {
     bool dump_tokens;
     bool dump_ast_json;
     bool warnings_enabled;
+    bool target_x86_64;
 } CCCompilerOptions;
 
 typedef struct {
@@ -31,10 +34,12 @@ static void cc_print_usage(FILE *out, const char *program_name) {
     fprintf(out, "       %s [options] parse <path>\n", program_name);
     fprintf(out, "       %s [options] check <path>\n", program_name);
     fprintf(out, "       %s [options] codegen <path>\n", program_name);
+    fprintf(out, "       %s build <path> [output]\n", program_name);
     fprintf(out, "       %s [options] <path>\n", program_name);
     fprintf(out, "\noptions:\n");
     fprintf(out, "  --dump-tokens     print token stream after lexing\n");
     fprintf(out, "  --dump-ast-json   print AST as JSON after parsing\n");
+    fprintf(out, "  --target=x86_64   emit x86-64 assembly instead of textual IR\n");
     fprintf(out, "  -Wall             enable all warnings\n");
     fprintf(out, "  -h, --help        show this help message\n");
 }
@@ -60,12 +65,13 @@ static bool cc_append_fragment(char *buffer, size_t capacity, size_t *length, co
     return true;
 }
 
-static int cc_parse_options(int argc, char **argv, CCCompilerOptions *options, int *command_arg_index, int *file_arg_index, int *num_positional) {
+static int cc_parse_options(int argc, char **argv, CCCompilerOptions *options, int *command_arg_index, int *file_arg_index, int *output_arg_index, int *num_positional) {
     int i;
 
     memset(options, 0, sizeof(*options));
     *command_arg_index = -1;
     *file_arg_index = -1;
+    *output_arg_index = -1;
     *num_positional = 0;
 
     for (i = 1; i < argc; i++) {
@@ -73,6 +79,12 @@ static int cc_parse_options(int argc, char **argv, CCCompilerOptions *options, i
             options->dump_tokens = true;
         } else if (strcmp(argv[i], "--dump-ast-json") == 0) {
             options->dump_ast_json = true;
+        } else if (strncmp(argv[i], "--target=", 9) == 0) {
+            if (strcmp(argv[i] + 9, "x86_64") != 0) {
+                fprintf(stderr, "error: unsupported target '%s' (only x86_64 is available)\n", argv[i] + 9);
+                return -1;
+            }
+            options->target_x86_64 = true;
         } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
             return 0;
         } else if (argv[i][0] == '-') {
@@ -84,6 +96,8 @@ static int cc_parse_options(int argc, char **argv, CCCompilerOptions *options, i
                 *command_arg_index = i;
             } else if (*file_arg_index == -1) {
                 *file_arg_index = i;
+            } else if (*output_arg_index == -1) {
+                *output_arg_index = i;
             }
             (*num_positional)++;
         }
@@ -545,18 +559,22 @@ static int cc_run_check(const char *path) {
     return exit_code;
 }
 
-static int cc_run_codegen(const char *path) {
+static int cc_run_codegen(const char *path, const char *output_path, bool assemble_link) {
     CCPreprocessResult preprocess_result;
     CCLexResult lex_result;
     CCParseResult parse_result;
     CCSemaResult sema_result;
     CCSemaOptions sema_options;
     CCCodegenResult codegen_result;
+    CCX86Result x86_result;
+    bool use_x86;
     int exit_code;
 
     memset(&sema_result, 0, sizeof(sema_result));
     memset(&codegen_result, 0, sizeof(codegen_result));
+    memset(&x86_result, 0, sizeof(x86_result));
     sema_options.warnings_enabled = g_options.warnings_enabled;
+    use_x86 = assemble_link || g_options.target_x86_64;
 
     if (!cc_prepare_processed_translation_unit(path, &preprocess_result, &lex_result, &parse_result)) {
         cc_parse_result_free(&parse_result);
@@ -578,12 +596,31 @@ static int cc_run_codegen(const char *path) {
     if (codegen_result.diagnostics.count > 0) {
         cc_print_diagnostics(stderr, &parse_result.source, codegen_result.diagnostics.items, codegen_result.diagnostics.count);
         exit_code = 1;
-    } else {
+        goto cleanup;
+    }
+
+    if (!use_x86) {
         fputs(codegen_result.text, stdout);
+        exit_code = 0;
+        goto cleanup;
+    }
+
+    cc_x86_translation_unit(&parse_result, codegen_result.text, &x86_result);
+    if (x86_result.diagnostics.count > 0) {
+        cc_print_diagnostics(stderr, &parse_result.source, x86_result.diagnostics.items, x86_result.diagnostics.count);
+        exit_code = 1;
+        goto cleanup;
+    }
+
+    if (assemble_link) {
+        exit_code = cc_build_executable_from_assembly(x86_result.text, output_path);
+    } else {
+        fputs(x86_result.text, stdout);
         exit_code = 0;
     }
 
 cleanup:
+    cc_x86_result_free(&x86_result);
     cc_codegen_result_free(&codegen_result);
     cc_sema_result_free(&sema_result);
     cc_parse_result_free(&parse_result);
@@ -596,12 +633,13 @@ int main(int argc, char **argv) {
     CCCompilerOptions options;
     int command_arg_index;
     int file_arg_index;
+    int output_arg_index;
     int num_positional;
     const char *command;
     const char *filepath;
     int parse_result;
 
-    parse_result = cc_parse_options(argc, argv, &options, &command_arg_index, &file_arg_index, &num_positional);
+    parse_result = cc_parse_options(argc, argv, &options, &command_arg_index, &file_arg_index, &output_arg_index, &num_positional);
     if (parse_result < 0) {
         return 1;
     }
@@ -622,10 +660,14 @@ int main(int argc, char **argv) {
         return cc_run_lex(filepath);
     }
 
-    if (num_positional == 2) {
-        command = argv[command_arg_index];
-        filepath = argv[file_arg_index];
-    } else {
+    if (num_positional > 3) {
+        cc_print_usage(stderr, argv[0]);
+        return 1;
+    }
+
+    command = argv[command_arg_index];
+    filepath = argv[file_arg_index];
+    if (num_positional == 3 && strcmp(command, "build") != 0) {
         cc_print_usage(stderr, argv[0]);
         return 1;
     }
@@ -647,7 +689,11 @@ int main(int argc, char **argv) {
     }
 
     if (strcmp(command, "codegen") == 0) {
-        return cc_run_codegen(filepath);
+        return cc_run_codegen(filepath, NULL, false);
+    }
+
+    if (strcmp(command, "build") == 0) {
+        return cc_run_codegen(filepath, num_positional == 3 ? argv[output_arg_index] : "a.out", true);
     }
 
     cc_print_usage(stderr, argv[0]);
