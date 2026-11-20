@@ -12,6 +12,8 @@ make && ./build/bin/C-Compiler check examples/feature_showcase.c
 
 ![Ghostty terminal running Lumi-Compiler: diagnostics for examples/lexer_errors.c alongside the lowered IR for examples/feature_showcase.c](docs/images/demo.png)
 
+A video walkthrough is not here yet. `docs/demo.md` has the sixty second capture script, the output it should produce, and what went wrong the last time it was shot.
+
 Or go all the way to a binary:
 
 ```sh
