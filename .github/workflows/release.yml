@@ -31,7 +31,19 @@ jobs:
           cp build/bin/C-Compiler "$dir/"
           cp README.md LICENSE "$dir/"
           tar czf "$dir.tar.gz" "$dir"
+      # A tarball nobody can verify is a tarball nobody should run.
+      - name: Checksum
+        run: |
+          out="SHA256SUMS-${GITHUB_REF_NAME}-${{ matrix.platform }}.txt"
+          if command -v sha256sum >/dev/null; then
+            sha256sum *.tar.gz > "$out"
+          else
+            shasum -a 256 *.tar.gz > "$out"
+          fi
+          cat "$out"
       - uses: softprops/action-gh-release@v3
         with:
-          files: "*.tar.gz"
+          files: |
+            *.tar.gz
+            SHA256SUMS-*.txt
           generate_release_notes: true
