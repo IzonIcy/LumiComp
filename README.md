@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/IzonIcy/LumiComp/actions/workflows/ci.yml/badge.svg)](https://github.com/IzonIcy/LumiComp/actions/workflows/ci.yml)
 
-Lumi-Compiler is a C compiler written in C that carries a subset of the language from source to readable textual IR, built for people who want to read a complete compiler front end and watch each stage run on a file they can edit.
+Lumi-Compiler is a C compiler written in C that carries a subset of the language from source to either readable textual IR or x86-64 assembly, built for people who want to read a complete compiler and watch each stage run on a file they can edit.
 
 Build it and push one file through the pipeline:
 
@@ -12,9 +12,15 @@ make && ./build/bin/C-Compiler check examples/feature_showcase.c
 
 ![Ghostty terminal running Lumi-Compiler: diagnostics for examples/lexer_errors.c alongside the lowered IR for examples/feature_showcase.c](docs/images/demo.png)
 
+Or go all the way to a binary:
+
+```sh
+./build/bin/C-Compiler build examples/asm_hello.c hello && ./hello
+```
+
 ## How it compares
 
-chibicc is the other small C compiler people read to learn how one works, and it goes further than this repo: it emits x86-64 assembly and can compile real programs. LumiComp stops one stage earlier, at textual IR, which keeps the backend short enough to read but leaves you with no object file. clang is the compiler to reach for when you want to build and run C. Nothing here replaces it.
+chibicc is the other small C compiler people read to learn how one works, and it still goes further: more of the language, self-hosting, and a longer track record. LumiComp covers a narrower subset and writes x86-64 assembly with no register allocation at all, every value in a stack slot, which makes the output correct before it is fast. That trade is deliberate: the backend is about 3,400 lines you can read in an afternoon. clang is the compiler to reach for when you want to build and run real C. Nothing here replaces it.
 
 ## The pipeline
 
@@ -63,7 +69,9 @@ A recursive-descent parser over a working C subset:
 
 ### Code generation
 
-The backend lowers the checked program to readable textual IR. It covers loops, conditionals, switch statements, labels, and goto, and it folds constant integer expressions during lowering. It does not emit assembly or machine code.
+The backend lowers the checked program to readable textual IR, covering loops, conditionals, switch statements, labels and goto, and folding constant integer expressions during lowering.
+
+`src/ccompiler/x86.c` then walks that IR and writes x86-64 assembly, one value per stack slot, no register allocation. `C-Compiler build` assembles and links the result with the system `cc`. Assembly syntax follows the host object format, Mach-O on Darwin and ELF elsewhere.
 
 ## Build and run
 
@@ -159,7 +167,7 @@ cp examples/*.c tests/*.c build/fuzz-corpus/
 
 ## What it does not do yet
 
-- No assembly, object files, or executables. The backend ends at textual IR.
+- The assembly target covers integers, doubles, pointers, control flow and calls, not the whole language. Structs, local arrays, single-precision floats, `sizeof`, and more than six integer call arguments are rejected with a located diagnostic.
 - No include search path. `#include` resolves next to the including file or from an absolute path, so `#include <stdio.h>` fails to open.
 - Preprocessor coverage stays on local includes and common macro flows.
 - Bit-fields, flexible array members, and full function-pointer coverage are incomplete.
