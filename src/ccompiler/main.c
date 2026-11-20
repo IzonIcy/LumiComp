@@ -657,6 +657,11 @@ int main(int argc, char **argv) {
 
     if (num_positional == 1) {
         filepath = argv[command_arg_index];
+        if (options.target_x86_64) {
+            fprintf(stderr, "error: --target=x86_64 needs a subcommand, a bare path only runs the lexer\n");
+            fprintf(stderr, "hint: %s --target=x86_64 codegen %s\n", argv[0], filepath);
+            return 1;
+        }
         return cc_run_lex(filepath);
     }
 

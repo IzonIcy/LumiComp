@@ -122,4 +122,17 @@ run_ir_unchanged_case examples/feature_showcase.c
 
 run_diagnostic_case local_array tests/asm_local_array.c "does not support local arrays"
 
+# A bare path only lexes, so a target there would otherwise be accepted and ignored.
+if "$BINARY" --target=x86_64 examples/asm_hello.c >"$TMP_DIR/bare-target.txt" 2>&1; then
+    echo "expected --target without a subcommand to fail" >&2
+    cat "$TMP_DIR/bare-target.txt" >&2
+    exit 1
+fi
+
+if ! grep -Fq -- "--target=x86_64 codegen" "$TMP_DIR/bare-target.txt"; then
+    echo "expected the bare-target error to name the working form" >&2
+    cat "$TMP_DIR/bare-target.txt" >&2
+    exit 1
+fi
+
 echo "assembly end-to-end tests passed"
