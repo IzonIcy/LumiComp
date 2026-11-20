@@ -58,6 +58,7 @@ test: $(TARGET)
 	sh tests/sema_smoke.sh
 	sh tests/codegen_smoke.sh
 	sh tests/golden_smoke.sh
+	sh tests/assembly_e2e.sh
 	sh tests/clang_diff.sh
 
 analyze:
